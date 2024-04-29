@@ -9,9 +9,9 @@ def add_code_copy_tag_to_response_text(response_text, code_blocks_start_index=0)
     code_block = ''
     response_text_with_copy_tags = ''
     for line in response_text.split('\n'):
-        if line.startswith('```'):
+        if line.strip().startswith('```'):
             if code_block_start:
-                code_blocks.append(code_block)
+                code_blocks.append(code_block.strip())
                 response_text_with_copy_tags += line + f'(cp {code_blocks_start_index + len(code_blocks) - 1})\n'
                 code_block = ''
                 code_block_start = False
@@ -23,7 +23,6 @@ def add_code_copy_tag_to_response_text(response_text, code_blocks_start_index=0)
                 code_block += line + '\n'
             response_text_with_copy_tags += line + '\n'
     return response_text_with_copy_tags, code_blocks
-
 
 
 '''
