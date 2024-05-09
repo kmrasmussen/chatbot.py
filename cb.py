@@ -7,6 +7,7 @@ from codeblocks import add_code_copy_tag_to_response_text
 import pyperclip
 from uuid import uuid4
 import pickle
+import sys
 
 from config import *
 from state import *
@@ -37,11 +38,30 @@ if exists(codeblocks_pickle_filename):
 else:
     codeblocks = CodeBlocks()
 
+class StateDict:
+    def __init__(self):
+        self.dict = {}
+        self.multiline = False
+        self.model = 'openai/gpt-3.5-turbo'
+
+    def save_as_pickle(self, filename):
+        with open(filename, 'wb') as f:
+            pickle.dump(self, f)
+
+if exists(statedict_pickle_filename):
+    with open(statedict_pickle_filename, 'rb') as f:
+        statedict = pickle.load(f)
+else:
+    statedict = StateDict()
 
 def save_nodes():
     nodes.save_as_pickle(nodes_pickle_filename)
 def save_codeblocks():
     codeblocks.save_as_pickle(codeblocks_pickle_filename)
+def save_codeblocks():
+    codeblocks.save_as_pickle(codeblocks_pickle_filename)
+def save_statedict():
+    statedict.save_as_pickle(statedict_pickle_filename)
 
 
 # function that adds a string to blocks.txt
@@ -49,12 +69,12 @@ def add_block_to_file(block):
     with open('blocks.txt', 'a') as f:
         f.write(block + '\n')
 
-command_list = ['exit', 'cp', 'clear', 'x', 'prefixshow', 'sethead', 'bash', 'bbash', 'lbp']
+command_list = ['exit', 'cp', 'clear', 'x', 'prefixshow', 'sethead', 'bash', 'bbash', 'lbp', 'ml', 'model', 'model?', 'statedict']
 
 def handle_user_input(user_input, last_node_id):
     user_node = nodes.add_node(last_node_id, user_input, 'user')
     response_text = get_completion(nodes.get_messages(), 
-                                   model,
+                                   statedict.model,
                                    OPENROUTER_API_KEY,
                                    add_assistant_response=False)
     print(user_node.id)
@@ -75,6 +95,7 @@ messages = nodes.get_messages()
 last_node_id = nodes.latest_node_id
 #print('last id', last_node_id)
 last_bash_input, last_bash_output = None, None
+
 
 def do_round(user_input):
     global last_node_id
@@ -152,28 +173,53 @@ def do_round(user_input):
                         print('set head to', node.id)
                     else:
                         raise Exception('unknown role in sethead')
+            elif command == 'ml':
+                statedict.multiline = not statedict.multiline
+                print('multiline mode:', statedict.multiline)
+            elif command == 'model':
+                statedict.model = command_arg
+                print('openrouter model set to', statedict.model)
+                print('cb.py does not check if the model is valid, see list at https://openrouter.ai/models')
+            elif command == 'model?':
+                print('openrouter model set to', statedict.model)
+                print('cb.py does not check if the model is valid, see list at https://openrouter.ai/models')
+            elif command == 'statedict':
+                print('statedict:', statedict.__dict__)
         else:
             print('command not found')
     else:
         last_node_id = handle_user_input(user_input, last_node_id)
     save_nodes()
     save_codeblocks()
+    save_statedict()
     return True
 
 # loop taking user input and generating response
 def chat_loop():
     while True:
-        user_input = input('§ ')
+        if statedict.multiline == False:
+            user_input = input('§ ')
+        else:
+            user_input_lines = []
+            while True:
+                user_input_line = input('§')
+                if user_input_line == 'EOF':
+                    break
+                user_input_lines.append(user_input_line)
+            user_input = '\n'.join(user_input_lines)
         if do_round(user_input) == False:
             break
 
+if __name__ == '__main__':
+    if not sys.stdin.isatty():  # Check if there is piped input
+        print('piping')
+        piped_input = sys.stdin.read()
+        print('piped input:', piped_input)
+        do_round(piped_input)
+    else:
+        if len(sys.argv) > 1:
+            command_args = " ".join(sys.argv[1:])
+            do_round(command_args)
+        else:
+            chat_loop()
 
-import sys
-
-if len(sys.argv) > 1:
-    command_args = " ".join(sys.argv[1:])
-    # Process the command-line arguments
-    #print("Command Arguments:", command_args)
-    do_round(command_args)
-else:
-    chat_loop()
